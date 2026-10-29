@@ -54,6 +54,11 @@ function runInteractive(): void {
   const rl = createInterface({ input: process.stdin, output: process.stdout, prompt: 'svg> ' });
   rl.prompt();
   rl.on('line', (line) => {
+    const command = line.trim();
+    if (command === 'quit' || command === 'exit') {
+      rl.close();
+      return;
+    }
     shell.runLine(line);
     rl.prompt();
   });
