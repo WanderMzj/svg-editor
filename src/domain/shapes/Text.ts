@@ -26,14 +26,6 @@ export class Text extends LeafShape {
     return super.applyOwnAttribute(attribute, value);
   }
 
-  getContent(): string {
-    return this.content;
-  }
-
-  setContent(value: string): void {
-    this.content = value;
-  }
-
   override textContent(): string | null {
     return this.content;
   }
@@ -61,10 +53,5 @@ export class Text extends LeafShape {
 
   override geometryTokens(): string[] {
     return [`${this.pointToken()} "${this.content}"`];
-  }
-
-  /** `text="..."` used by `show` and by `set text` feedback. */
-  describeText(): string {
-    return `text="${this.content}"`;
   }
 }

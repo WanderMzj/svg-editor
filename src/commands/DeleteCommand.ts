@@ -29,7 +29,7 @@ export class DeleteCommand implements Command {
 
   undo(): string[] {
     this.parent.insertAt(this.index, this.shape);
-    this.doc.register(this.shape, false);
+    this.doc.register(this.shape);
     const where = this.parent instanceof Shape ? ` into g#${this.parent.id}` : '';
     return [`${this.shape.label} restored${where}`];
   }

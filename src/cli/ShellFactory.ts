@@ -47,5 +47,5 @@ export function createShell(output: Output, ports: PortOverrides = {}): ShellBun
   registry.register(new UndoHandler(context));
   registry.register(new RedoHandler(context));
   registry.register(new HelpHandler(registry));
-  return { shell: new Shell(registry, context, output), context };
+  return { shell: new Shell(registry, output), context };
 }

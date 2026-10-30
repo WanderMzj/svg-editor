@@ -10,7 +10,7 @@ import { Text } from './shapes/Text';
 
 /** The parameter schema of one buildable type. */
 interface ShapeSpec {
-  /** Geometry parameters, in command order. */
+  /** Geometry parameters, named like the SVG attributes, in `create` order. */
   numbers: readonly string[];
   /** Optional trailing paint parameter (`fill` for areas, `stroke` for lines). */
   paint: 'fill' | 'stroke' | null;
@@ -18,14 +18,16 @@ interface ShapeSpec {
 }
 
 /**
- * Name-based dispatch #2 (the other one is the command registry in the shell).
- * The plugin stage replaces this table with a registry fed by ShapeProviders;
- * see doc/README.md ("待重构").
+ * Name-based dispatch #2 of the two the spec allows (the other one is the
+ * command registry in the shell): `type` -> class. Both `create` and the SVG
+ * reader go through here, so no other place switches on a tag name. The plugin
+ * stage replaces this table with a registry fed by ShapeProviders; see
+ * doc/README.md ("待重构").
  */
 export class ShapeFactory {
   private static readonly SPECS: Record<string, ShapeSpec> = {
     rect: {
-      numbers: ['x', 'y', 'w', 'h'],
+      numbers: ['x', 'y', 'width', 'height'],
       paint: 'fill',
       build: (id, v) => new Rect(id, v[0], v[1], v[2], v[3]),
     },
@@ -52,14 +54,15 @@ export class ShapeFactory {
   };
 
   static isKnown(type: string): boolean {
-    return type === 'text' || Object.prototype.hasOwnProperty.call(ShapeFactory.SPECS, type);
+    return type === 'text' || ShapeFactory.specOf(type) !== undefined;
   }
 
+  /** Builds a shape from the tokens that follow `create <type> <id>`. */
   static create(type: string, id: string, args: readonly string[]): Shape {
     if (type === 'text') {
       return ShapeFactory.buildText(id, args);
     }
-    const spec = ShapeFactory.SPECS[type];
+    const spec = ShapeFactory.specOf(type);
     if (!spec) {
       throw new EditorError(`unknown shape type: ${type} (is the plugin loaded?)`);
     }
@@ -68,13 +71,32 @@ export class ShapeFactory {
     if (args.length < geometry || args.length > max) {
       throw new EditorError(`create ${type}: wrong number of arguments`);
     }
-    const values = args.slice(0, geometry).map((raw) => Numbers.parse(raw));
-    const shape = spec.build(id, values);
-    const paintValue = spec.paint ? args[geometry] : undefined;
+    const shape = spec.build(id, args.slice(0, geometry).map((raw) => Numbers.parse(raw)));
+    const paintValue = args[geometry];
     if (spec.paint && paintValue !== undefined) {
       shape.applyAttribute(spec.paint, paintValue);
     }
     return shape;
+  }
+
+  /** Builds a shape from SVG attributes (reader side); null when the element is not supported. */
+  static fromXml(
+    type: string,
+    id: string,
+    attribute: (name: string) => string | undefined,
+    text: string,
+  ): Shape | null {
+    if (type === 'text') {
+      return new Text(id, ShapeFactory.numberOf(attribute('x')), ShapeFactory.numberOf(attribute('y')), text);
+    }
+    const spec = ShapeFactory.specOf(type);
+    if (!spec) {
+      return null;
+    }
+    return spec.build(
+      id,
+      spec.numbers.map((name) => ShapeFactory.numberOf(attribute(name))),
+    );
   }
 
   /** Suggested id for an unnamed element read from a file: `rect1`, `rect2`, ... */
@@ -82,6 +104,17 @@ export class ShapeFactory {
     const next = (counters.get(type) ?? 0) + 1;
     counters.set(type, next);
     return `${type}${next}`;
+  }
+
+  /** Own-property lookup, so a type named `constructor` or `toString` is not "known". */
+  private static specOf(type: string): ShapeSpec | undefined {
+    return Object.prototype.hasOwnProperty.call(ShapeFactory.SPECS, type)
+      ? ShapeFactory.SPECS[type]
+      : undefined;
+  }
+
+  private static numberOf(raw: string | undefined): number {
+    return raw === undefined ? 0 : Numbers.parse(raw);
   }
 
   private static buildText(id: string, args: readonly string[]): Text {

@@ -1,5 +1,3 @@
-import { EditorError } from '../domain/EditorError';
-import { EditorContext } from '../app/EditorContext';
 import { Output } from '../ports/Output';
 import { CommandRegistry } from './CommandRegistry';
 import { Tokenizer } from './Tokenizer';
@@ -12,7 +10,6 @@ import { Tokenizer } from './Tokenizer';
 export class Shell {
   constructor(
     private readonly registry: CommandRegistry,
-    private readonly ctx: EditorContext,
     private readonly out: Output,
   ) {}
 
@@ -53,14 +50,6 @@ export class Shell {
   }
 
   private reportError(error: unknown): void {
-    if (error instanceof EditorError) {
-      this.out.line(`error: ${error.message}`);
-      return;
-    }
-    if (error instanceof Error && error.name === 'EditorError') {
-      this.out.line(`error: ${error.message}`);
-      return;
-    }
     const message = error instanceof Error ? error.message : String(error);
     this.out.line(`error: ${message}`);
   }

@@ -15,7 +15,7 @@ export class CreateShapeCommand implements Command {
 
   execute(): string[] {
     this.container.append(this.shape);
-    this.doc.register(this.shape, false);
+    this.doc.register(this.shape);
     const where = this.inContainer ? ` in g#${this.inContainer.id}` : '';
     return [`${this.shape.label} created${where}`];
   }

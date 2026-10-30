@@ -1,4 +1,5 @@
 import { EditSession } from '../commands/EditSession';
+import { EditorError } from '../domain/EditorError';
 import { SvgDocument } from '../domain/SvgDocument';
 import { FileSystem } from '../ports/FileSystem';
 import { ShapeReader } from '../ports/ShapeReader';
@@ -32,16 +33,8 @@ export class EditorContext {
 
   requireDocument(): SvgDocument {
     if (!this.current) {
-      throw new NoDocumentError();
+      throw new EditorError("no document. use 'init' or 'read' first");
     }
     return this.current;
-  }
-}
-
-/** Carries the exact spec message for "no document yet". */
-export class NoDocumentError extends Error {
-  constructor() {
-    super("no document. use 'init' or 'read' first");
-    this.name = 'EditorError';
   }
 }

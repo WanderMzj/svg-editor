@@ -28,10 +28,6 @@ export abstract class LeafShape extends Shape {
     }
   }
 
-  get numberFields(): readonly string[] {
-    return this.fields;
-  }
-
   getNumber(field: string): number {
     const value = this.numbers.get(field);
     if (value === undefined) {
@@ -123,18 +119,13 @@ export abstract class LeafShape extends Shape {
   }
 
   override xmlAttributes(): Array<[string, string]> {
-    const out: Array<[string, string]> = this.fields.map(
-      (field) => [xmlNameOf(field), Numbers.format(this.getNumber(field))] as [string, string],
+    const geometry = this.fields.map(
+      (field): [string, string] => [field, Numbers.format(this.getNumber(field))],
     );
-    return out.concat(this.paint.toXmlAttributes());
+    return geometry.concat(this.paint.toXmlAttributes());
   }
 
   override textContent(): string | null {
     return null;
   }
-}
-
-/** `width` is spelled the same in our command language and in SVG; kept for clarity. */
-function xmlNameOf(field: string): string {
-  return field;
 }

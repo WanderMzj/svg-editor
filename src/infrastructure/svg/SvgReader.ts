@@ -1,14 +1,7 @@
 import { EditorError } from '../../domain/EditorError';
-import { Numbers } from '../../domain/Numbers';
 import { Shape } from '../../domain/Shape';
 import { ShapeFactory } from '../../domain/ShapeFactory';
 import { SvgDocument } from '../../domain/SvgDocument';
-import { Circle } from '../../domain/shapes/Circle';
-import { Ellipse } from '../../domain/shapes/Ellipse';
-import { Group } from '../../domain/shapes/Group';
-import { Line } from '../../domain/shapes/Line';
-import { Rect } from '../../domain/shapes/Rect';
-import { Text } from '../../domain/shapes/Text';
 import { ReadResult, ShapeReader } from '../../ports/ShapeReader';
 import { XmlNode } from '../xml/XmlNode';
 import { XmlParseError, XmlParser } from '../xml/XmlParser';
@@ -82,6 +75,9 @@ export class SvgReader implements ShapeReader {
       return null;
     }
     usedIds.add(id);
+    if (node.attr('transform') !== undefined) {
+      warnings.push(`ignored transform on <${node.name}> ${id}: coordinates are used as written`);
+    }
     for (const name of PAINT_ATTRIBUTES) {
       const value = node.attr(name);
       if (value !== undefined) {
@@ -101,26 +97,7 @@ export class SvgReader implements ShapeReader {
   }
 
   private buildFromNode(node: XmlNode, id: string): Shape | null {
-    const num = (name: string, fallback = 0): number => {
-      const raw = node.attr(name);
-      return raw === undefined ? fallback : Numbers.parse(raw);
-    };
-    switch (node.name) {
-      case 'rect':
-        return new Rect(id, num('x'), num('y'), num('width'), num('height'));
-      case 'circle':
-        return new Circle(id, num('cx'), num('cy'), num('r'));
-      case 'ellipse':
-        return new Ellipse(id, num('cx'), num('cy'), num('rx'), num('ry'));
-      case 'line':
-        return new Line(id, num('x1'), num('y1'), num('x2'), num('y2'));
-      case 'text':
-        return new Text(id, num('x'), num('y'), node.text.trim());
-      case 'g':
-        return new Group(id);
-      default:
-        return null;
-    }
+    return ShapeFactory.fromXml(node.name, id, (name) => node.attr(name), node.text.trim());
   }
 }
 

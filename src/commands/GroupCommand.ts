@@ -56,7 +56,7 @@ export class GroupCommand implements Command {
 
   execute(): string[] {
     this.host.insertAt(this.hostIndex, this.group);
-    this.doc.register(this.group, false);
+    this.doc.register(this.group);
     for (const { shape, parent } of this.placements) {
       parent.removeChild(shape);
     }

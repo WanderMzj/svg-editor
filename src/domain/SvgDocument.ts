@@ -2,14 +2,6 @@ import { EditorError } from './EditorError';
 import { Numbers } from './Numbers';
 import { Shape } from './Shape';
 import { ShapeContainer } from './ShapeContainer';
-import { ShapeKind } from './ShapeKind';
-
-export interface DocumentState {
-  width: number;
-  height: number;
-  root: ShapeContainer;
-  sourcePath: string | null;
-}
 
 /**
  * One SVG document: the canvas size plus the root container, and the id index
@@ -80,12 +72,8 @@ export class SvgDocument implements ShapeContainer {
     return this.rootContainer.indexOf(shape);
   }
 
-  /**
-   * Registers a shape (and its subtree) in the id index. `checkDuplicate`
-   * guards user-created ids; tree moves pass false because the shape is
-   * already indexed.
-   */
-  register(shape: Shape, checkDuplicate = true): void {
+  /** Registers a shape (and its subtree) in the id index. Throws on a duplicate id. */
+  register(shape: Shape): void {
     if (this.byId.has(shape.id)) {
       throw new EditorError(`id already exists: ${shape.id}`);
     }
@@ -185,25 +173,12 @@ export class SvgDocument implements ShapeContainer {
 
   private indexTree(): void {
     for (const child of this.rootContainer.children) {
-      this.register(child, false);
+      this.register(child);
     }
   }
 
   static empty(width = 800, height = 600): SvgDocument {
     return new SvgDocument(width, height);
-  }
-
-  kindOf(shape: Shape): ShapeKind {
-    return shape.kind;
-  }
-
-  toState(): DocumentState {
-    return {
-      width: this._width,
-      height: this._height,
-      root: this.rootContainer,
-      sourcePath: this._sourcePath,
-    };
   }
 
   static describeSize(width: number, height: number): string {

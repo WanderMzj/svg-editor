@@ -57,14 +57,6 @@ export class EditSession {
     this.ioLocked = true;
   }
 
-  get undoDepth(): number {
-    return this.undoStack.length;
-  }
-
-  get redoDepth(): number {
-    return this.redoStack.length;
-  }
-
   private assertAllowed(action: string): void {
     if (this.ioLocked) {
       throw new EditorError(`${action} not allowed after io command`);

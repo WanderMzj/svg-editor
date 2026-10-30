@@ -1,7 +1,6 @@
 import { EditorError } from '../domain/EditorError';
 import { Shape } from '../domain/Shape';
 import { ShapeContainer } from '../domain/ShapeContainer';
-import { SvgDocument } from '../domain/SvgDocument';
 import { Command } from './Command';
 
 /** `front <id>` / `back <id>` — moves a shape to the end / start of its siblings. */

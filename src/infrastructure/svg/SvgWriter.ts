@@ -31,9 +31,6 @@ export class SvgWriter implements ShapeWriter {
     for (const [name, value] of shape.xmlAttributes()) {
       attributes.push([name, value]);
     }
-    for (const [name, value] of shape.extraAttributes) {
-      attributes.push([name, value]);
-    }
     const rendered = attributes.map(([name, value]) => ` ${name}="${encodeXml(value)}"`).join('');
     const text = shape.textContent();
     if (text !== null) {

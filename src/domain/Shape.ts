@@ -11,11 +11,10 @@ export type Point = { x: number; y: number };
  * `Shape` and never asks which concrete class it is holding.
  */
 export abstract class Shape {
-  private _id: string;
+  private readonly _id: string;
   private readonly _kind: ShapeKind;
   private _parent: ShapeContainer | null = null;
   protected readonly paint = new Paint();
-  private readonly extra: Array<[string, string]> = [];
 
   protected constructor(id: string, kind: ShapeKind) {
     this._id = id;
@@ -24,11 +23,6 @@ export abstract class Shape {
 
   get id(): string {
     return this._id;
-  }
-
-  /** Only the reader renames a shape (duplicate ids inside an imported file). */
-  rename(id: string): void {
-    this._id = id;
   }
 
   get kind(): ShapeKind {
@@ -50,14 +44,6 @@ export abstract class Shape {
   /** Contract that a composite can serve as a container; leaves answer false. */
   asContainer(): ShapeContainer | null {
     return null;
-  }
-
-  get extraAttributes(): readonly [string, string][] {
-    return this.extra;
-  }
-
-  addExtraAttribute(name: string, value: string): void {
-    this.extra.push([name, value]);
   }
 
   /** Applies a white-listed attribute; returns false when the attribute is unknown. */

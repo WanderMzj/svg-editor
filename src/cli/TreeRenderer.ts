@@ -34,7 +34,6 @@ export class TreeRenderer {
         this.collect(container, '', rows);
       }
     }
-    const header = rows[0];
     return rows.map((row, index) => {
       if (index === 0) {
         return row.label;

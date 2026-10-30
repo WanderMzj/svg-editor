@@ -49,13 +49,5 @@ export function resolveParent(
   if (containerId === null) {
     return { container: doc.root, shape: null };
   }
-  const shape = doc.findOrNull(containerId);
-  if (!shape) {
-    throw new EditorError(`no such container: ${containerId}`);
-  }
-  const container = shape.asContainer();
-  if (!container) {
-    throw new EditorError(`not a container: ${containerId}`);
-  }
-  return { container, shape };
+  return { container: doc.findContainer(containerId), shape: doc.find(containerId) };
 }
