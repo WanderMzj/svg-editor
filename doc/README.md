@@ -140,14 +140,14 @@ svg --> xml
 
 - **Value Object**：`Paint`（fill/stroke/stroke-width）与 `PaintState` 把「表现属性」从 6 个图形类里抽出来，避免每加一种图形就复制三个字段。
 - **Registry（命令表）**：`CommandRegistry` 用 `Map<name, handler>` 替代 `switch(command)`，`help` 和「未知命令」提示读同一份数据。
-- **Factory（图形工厂）**：`ShapeFactory` 用一张 `type -> spec` 表把「参数个数、参数名、可选 paint 参数、构造方式」收在一起。
+- **Factory（图形工厂）**：`ShapeFactory` 用一张 `type -> spec` 表把「参数个数、参数名、可选 paint 参数、构造方式」收在一起；`create` 命令与 SVG 读入（`fromXml`）都走这张表，所以按标签名分派只有这一处。
 
 **两处按名字分派**（规格允许的两处，均已标注为待重构）：
 
 | 位置 | 现状 | 待重构方向 |
 |---|---|---|
 | `CommandRegistry` | `Map<string, CommandHandler>` | 已经足够，后续只需注册表外置成配置 |
-| `ShapeFactory.SPECS` | `Record<string, ShapeSpec>` 静态表 | 插件阶段替换为 `ShapeProvider` 注册表（见 1.4 变化点 C） |
+| `ShapeFactory.SPECS` | `Record<string, ShapeSpec>` 静态表（`create` 与 `read` 共用） | 插件阶段替换为 `ShapeProvider` 注册表（见 1.4 变化点 C） |
 
 ### 1.3 依赖方向规则
 
@@ -175,13 +175,13 @@ cli ──▶ app ──▶ commands ──▶ domain
 |---|---|---|
 | A | **新增图形类型**（`box`、`polygon`、`path`） | 留了：`ShapeFactory.SPECS` 是数据表，新增一种类型 = 加一条 spec + 一个类，命令层零改动。但**没有**提前做插件接口——本阶段只有 6 个内核类型，过早抽象会多出 `register()` / `unregister()` 的语义问题（已注册类型被 `read` 读到怎么办），收益为负。 |
 | B | **新增命令**（如 `rotate`、`copy`） | 留了：新增 `XxxCommand` + 一个 `XxxHandler`，在 `ShellFactory` 注册一行。Handler 只做「解析参数 → 找到图形 → 构造命令」，解析逻辑用 `Args` 工具复用。 |
-| C | **插件化（ShapeProvider）** | 部分留：`Shape.asContainer()` / `ownAttributeNames()` / `applyOwnAttribute()` 这些钩子已经让「容器型复合图形」不需要改内核（`box` 只需继承 `Group` 并覆写 `applyOwnAttribute` 做传播）。但真正的插件加载（动态 import / 配置文件）没做——规格明确说本阶段不要求。 |
+| C | **插件化（ShapeProvider）** | 部分留：`Shape.asContainer()` / `ownAttributeNames()` / `applyOwnAttribute()` 这些钩子已经让「容器型复合图形」不需要改内核（设想：`box` 继承 `Group` 并覆写 `applyOwnAttribute` 做 fill / label 的传播；该方案尚未实现，也没有验证过）。但真正的插件加载（动态 import / 配置文件）没做——规格明确说本阶段不要求。 |
 | D | **属性集合扩展**（`opacity`、`transform`、`text-anchor`） | **故意不留**：目前白名单是 `Paint` + `ownAttributeNames()` 两处，加属性需要同时改这两处。这是有意的——`set` 白名单是**安全边界**（防止把任意字符串写进 SVG 破坏文件），做成完全开放的数据驱动反而会让「哪些属性合法」散落各处。 |
 | E | **持久化格式变化**（JSON 工程文件、压缩包、版本控制） | 留了：`ShapeReader` / `ShapeWriter` 两个端口，换格式只需换实现并在 `ShellFactory` 改一行；domain 完全不知道 SVG 的存在。 |
 | F | **交互通道变化**（GUI、HTTP API、MCP） | 留了：`Shell` 只做「行 → tokens → handler」；`Output` 端口把输出与 `stdout` 解耦。GUI 可以复用 `CommandRegistry` + `EditorContext`，只是换一个输入层。 |
 | G | **undo 粒度变细**（按字符 / 按拖拽帧） | **故意不留**：现在是命令级撤销，若要合并连续 `move` 需要 `EditSession` 支持 merge 策略。当前没有需求，加进来只会让 `record()` 的语义变复杂。 |
 | H | **大文档性能**（十万级图形） | **故意不留**：`SvgDocument` 用 `Map` 做 id 索引，`all()` 是 O(n) 遍历；目前 `group` 需要按文档序排序会走一次 `all()`。没有性能需求，先保证正确性与可读性。 |
-| I | **坐标变换语义**（`transform="translate(...) scale(...)"`） | 部分留：`Group` 允许携带 `transform` 属性（`Shape.setTransform`），但 `move` / `scale` 直接改子元素的几何值而不是写 `transform`。理由是规格里 `move` 的回显是「moved to (130,100)」，说明期望的是**绝对坐标**语义；混用两种表示会让 `tree` 输出不可读。 |
+| I | **坐标变换语义**（`transform="translate(...) scale(...)"`） | **故意不留**：既不解析也不保存 `transform`。读入带 `transform` 的元素时输出 `warning: ignored transform on <g> g1: coordinates are used as written`，`move` / `scale` 直接改几何值而不是写 `transform`。理由是规格里 `move` 的回显是「moved to (130,100)」，说明期望的是**绝对坐标**语义；混用两种表示会让 `tree` 输出不可读。 |
 
 ---
 
@@ -195,9 +195,9 @@ cli ──▶ app ──▶ commands ──▶ domain
 
 **定位**：`GroupCommand.execute()` 把新 `<g>` 插进了父容器，但忘了把它登记进 `SvgDocument` 的 id 索引——索引只服务 `find()`，插入容器不会自动登记。
 
-**修正**：`execute()` 里补 `doc.register(group)`，`undo()` 里补 `unregister`。**同时发现一个隐藏问题**：补上登记后，`DeleteCommand.undo()` 会把子树重新登记一次，而 `GroupCommand` 又登记过，于是重复。最终把 `register()` 加了 `checkDuplicate` 参数：用户输入的新 id 走校验，树内移动（删除恢复、建组）走 `false`。
+**修正**：`execute()` 里补 `doc.register(group)`，`undo()` 里补 `unregister`。**复核时订正**：当时为防止重复登记，给 `register()` 加过一个 `checkDuplicate` 参数，但校验其实无条件执行，参数从未生效；树内的所有移动都是先 `unregister` 再 `register`，本来就不会重复。该参数已删除，`register()` 一律校验 id 唯一。
 
-> 这条的教训：**id 索引不是树的派生物，而是需要显式维护的第二个真相**。凡是「插入/移除节点」的地方都必须成对调用 register/unregister，这一点后来写进了 `DeleteCommand` / `AddToCommand` / `UngroupCommand` 的检查清单。
+> 这条的教训：**id 索引不是树的派生物，而是需要显式维护的第二个真相**。凡是「创建/删除节点」的地方都要成对调用 register / unregister；`group` 登记新建的容器，`ungroup` 注销被解散的容器（撤销时再登记），`addto` / `front` / `back` 只改变位置、不改变索引；`test/ungroup.test.ts` 固定了 `ungroup` 这一条。
 
 ### 2.2 「缺 id 自动补」的编号从 2 开始
 
@@ -233,7 +233,19 @@ cli ──▶ app ──▶ commands ──▶ domain
 
 **决定**：自己写（`src/infrastructure/xml/`，约 200 行）。理由：① 项目要求「零运行时依赖」便于助教直接 `npm install && npm run cli`；② 我们需要控制的是**错误信息**（`cannot parse svg: ...`）和**实体解码**（`&amp;` → `&`，再编码回去），第三方库的默认行为反而要额外适配；③ 解析范围是 SVG 子集（元素/属性/文本/注释/CDATA），不是通用 XML。
 
-**代价**：不支持命名空间前缀（`xlink:href` 会被当作普通属性名保留，不影响读写）、不支持 DTD 实体定义。已写进「已知限制」。
+**代价**：不支持命名空间前缀（`xlink:href` 这类带前缀的属性按普通属性名解析，但不在保留范围内，读入后即被丢弃，见已知限制 6）、不支持 DTD 实体定义。已写进「已知限制」。
+
+### 2.7 复核轮：用工具审计，而不是凭印象
+
+交付后做了一轮复核，方法是先跑工具、再读文档，而不是重读自己写的东西：
+
+1. `tsc --noUnusedLocals --noUnusedParameters` 报出 5 处未使用的符号；对可疑成员逐个 `grep` 调用方，又找出一批没有调用方的成员（`extraAttributes`、`Text.getContent`、`SvgDocument.toState` 等）。
+2. `grep -rnE 'switch \(|case '` 发现 `SvgReader` 里有第三处按标签名的 `switch`，超出规格允许的两处。它是为了「读文件时方便地按标签建对象」顺手写的，当时没有对照规格第 2.1 节检查。已收回到 `ShapeFactory.fromXml`。
+3. 逐条核对文档里的断言，发现 4 处与实现不符：`transform` 并未保留（代码里从来没有 `setTransform`）；`CommandRegistry` 用 `Map`、并没有 `switch`；`checkDuplicate` 参数从未生效；修订记录 R1–R5 大部分并非真实发生过的修订。均已按事实改写。
+
+4. 订正文档时写下「`ungroup` 不改变索引」，回头核对代码发现这句不成立：`UngroupCommand` 从未读过构造参数 `doc`（`tsc --noUnusedParameters` 报过），所以 `ungroup` 之后被解散的容器 id 仍留在索引里——`show` 还能查到一个空容器、`save` 的元素数多算一个、该 id 无法复用。先写 `test/ungroup.test.ts` 复现（3 个用例中 2 个失败），再修：`execute` 时注销，`undo` 时重新登记。这是上一版交付里一个真实的 bug，原有 20 个测试没有覆盖「id 索引与树同步」。
+
+教训：文档里的每一句「实现了 X」，都应该能用一条 grep 或一个测试反证；连订正文档时新写的句子也不例外。本轮新增 `test/review.test.ts`（5 个用例）与 `test/ungroup.test.ts`（3 个用例）把其中可测的部分固定下来。
 
 ---
 
@@ -254,15 +266,17 @@ src/cli/             ✔
 src/cli/handlers/    ✔
 ```
 
-**修订记录**（与初版方案的差异）：
+**修订记录**（实现过程中相对原设想的变化）：
+
+> 说明：开发前没有单独成文的方案，1.1–1.4 是边实现边定稿的。此前版本里的 R1–R5（`EditorContext` 搬目录、补 `ports/` 等）与真实过程不符，已删除；下表只保留确实发生过的变化。
 
 | 修订 | 内容 | 原因 |
 |---|---|---|
-| R1 | 初版方案把 `EditorContext` 放在 `cli/` 下 | 实现时发现 `commands` 层也需要它（Handler 通过它拿 session），放在 `cli/` 会让 `commands → cli` 反向依赖，改为独立的 `app/` 层 |
-| R2 | 初版方案没有 `ports/`，直接在 `infrastructure` 里写 `fs` | 写测试时无法替换文件系统，抽出 `FileSystem` / `ShapeReader` / `ShapeWriter` / `Output` 四个端口 |
-| R3 | 初版方案计划把 tree/show 渲染放进 `domain` | 渲染是**表现层**职责，放进 domain 会让领域模型依赖「列宽」这种展示细节；移到 `cli/TreeRenderer`、`cli/ShowRenderer` |
-| R4 | 初版方案里 `GroupCommand` 计划用「子命令组合」实现 | 子命令组合的 undo 顺序难以保证「成员回到原下标」，改为单个命令自己记录 `Placement[]` |
-| R5 | 初版方案没有 `ShapeState` / `PaintState` | 实现 `set` 的 undo 时需要快照，抽出两个纯数据对象 |
+| R1 | `GroupCommand` 初稿用 `CompositeCommand` 组合若干子命令 | 子命令各自 undo 时无法保证成员回到原下标；改为单个命令记录 `Placement[]`，并删除了 `CompositeCommand.ts` |
+| R2 | 依赖规则 3：`ports` 由「不依赖任何模块」放宽为「可以依赖 `domain`」 | `ShapeReader.read()` 必须返回 `SvgDocument`，见 3.2 |
+| R3 | `SvgReader` 内曾有第三处按标签名的 `switch` | 复核时发现，规格只允许两处；收回到 `ShapeFactory.fromXml`，`create` 与 `read` 共用同一张类型表 |
+| R4 | 删除无调用方的成员：`Shape.extraAttributes` / `addExtraAttribute` / `rename`、`Text` 的两个访问器、`SvgDocument.toState` / `kindOf`、`EditSession.undoDepth` / `redoDepth`、`Shell` 未使用的 `ctx` | 复核时用 `tsc --noUnusedLocals` 与 `grep` 找出；减少没人维护的接口 |
+| R5 | `UngroupCommand` 补上 id 索引的注销 / 重新登记 | 复核时发现 `ungroup` 后被解散的容器仍留在索引里（`show` 可查到、`save` 元素数多算、id 不能复用），见 2.7 第 4 条 |
 
 ### 3.2 依赖方向：规则是否被违反
 
@@ -275,7 +289,7 @@ grep -rn "infrastructure\|/cli/\|/commands/" src/domain/     # 无输出
 # 2. commands 不得依赖 infrastructure / cli
 grep -rn "infrastructure\|/cli/" src/commands/                # 无输出
 
-# 3. 只有 main.ts 能直接 import node:fs
+# 3. node:fs 只允许出现在 infrastructure/NodeFileSystem.ts 与 cli/main.ts（读脚本）
 grep -rn "node:fs" src/                                       # 仅 cli/main.ts 与 infrastructure/NodeFileSystem.ts
 
 # 4. ports 只允许 import domain
@@ -310,24 +324,26 @@ grep -rn "^import" src/domain/ | grep -v "from '\./\|from '\.\./"   # 无输出
 | **往返一致性** | `test/roundtrip.test.ts`：构建文档 → `save` → `read` → `tree`，断言与保存前**完全相同**；文本里的 `& < >` 转义后再读回内容不变。 |
 | **命令覆盖** | 命令总表 19 条（init/read/save/canvas/create/delete/move/scale/set/group/ungroup/addto/front/back/tree/show/help/undo/redo）全部实现，`help` 输出即总表。 |
 
-当前测试结果：**3 个测试文件 / 20 个用例全部通过**。
+当前测试结果：**5 个测试文件 / 28 个用例全部通过**（含复核轮新增的 `test/ungroup.test.ts`（`ungroup` 与 id 索引同步，3 个用例）和 `test/review.test.ts`（5 个用例）：`transform` 警告、`create` 与 `read` 共用类型表、原型属性名不被当作图形类型、无文档时的错误路径）。
 
 ### 4.2 代码质量
 
-- **类型严格**：`tsconfig.json` 开启 `strict` + `noImplicitOverride` + `noFallthroughCasesInSwitch`，`npm run typecheck` 零错误。
+- **类型严格**：`tsconfig.json` 开启 `strict` + `noImplicitOverride` + `noFallthroughCasesInSwitch` + `noUnusedLocals` + `noUnusedParameters`，`npm run typecheck` 零错误。
 - **无运行时依赖**：`package.json` 只有 `devDependencies`，`npm install` 不会拉进任何库代码。
 - **一类一文件**：`domain/shapes/` 下每个图形一个文件；`commands/` 下每个命令一个文件；文件名 = 类名。
-- **没有 `switch(tag)` 分派**：唯一的两个 `switch` 在 `ShapeFactory`（按类型名建对象）与 `CommandRegistry`（按命令名查 handler），符合规格豁免条件。
+- **按名字分派只有两处**：`ShapeFactory.SPECS`（类型名到类，`create` 与 `read` 共用）和 `CommandRegistry`（命令名到 handler，用 `Map` 实现，没有 `switch`），符合规格豁免条件。代码中仅有的 `switch` 在 `Paint.apply`，分派对象是属性名而不是标签名。
 - **错误即状态不变**：所有命令都是「先校验、后执行」——`SetAttributeCommand` 在构造时就检查白名单，`ScaleCommand` 在构造时就检查正数，`GroupCommand` 在构造时就检查「容器与子孙同组」。校验失败时构造抛错，**命令对象根本没被创建**，`EditSession.record()` 不会碰栈，因此状态必然不变。
 - **回显与行为同源**：命令的 `execute()` / `undo()` 返回的就是要打印的行，不存在「实现了但回显写错」的漂移可能。
 
 ### 4.3 已知限制（如实记录）
 
 1. **`create box` 未实现**——按规格 4.4 属于插件化阶段；当前报 `error: unknown shape type: box (is the plugin loaded?)`。
-2. **`transform` 属性**：读入时保留为额外属性并原样写回，但 `move` / `scale` 不解析它——作用于带 `transform` 的 `<g>` 时，子元素坐标按原值增减，视觉效果会与纯几何模型不同。这是本阶段的语义选择（见 1.4 变化点 I）。
+2. **`transform` 属性**：既不解析也不保存。读入带 `transform` 的元素时输出 `warning: ignored transform on <g> g1: coordinates are used as written`，坐标按原值使用；`save` 后该属性不会写回，所以带平移 / 缩放变换的文件保存后视觉效果会改变。这是本阶段的语义选择（见 1.4 变化点 I）。
 3. **`<path>`、`<polygon>` 等未在规格内的元素**：读入时忽略并给出 `warning: ignored unsupported element <path>`，不会静默丢失数据而不提示。
 4. **`scale` 对 `line` 的语义**：按规格「factor 同乘到图形的全部几何属性」，端点坐标同乘（即以原点为基准缩放），而不是以线自身中心缩放。
 5. **XML 解析**：不支持 DTD 实体、命名空间前缀解析。
+6. **未知属性在 read → save 后丢失**：读入时只保留 `id`、各类型的几何属性和 `fill` / `stroke` / `stroke-width`，其余属性（`opacity`、`class`、`font-size`、`text-anchor`、`xlink:href` 等）不会写回。
+7. **脚本文件读取绕过端口**：`cli/main.ts` 的 `--script` 直接用 `node:fs` 读文件，没有经过 `FileSystem` 端口；它只影响入口层，不影响命令的可测试性。
 
 ---
 
