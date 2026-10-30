@@ -35,6 +35,7 @@ export class UngroupCommand implements Command {
       this.group.removeChild(child);
     }
     this.host.removeChild(this.group);
+    this.doc.unregister(this.group);
     this.children.forEach((child, offset) => this.host.insertAt(this.index + offset, child));
     return [
       `g#${this.group.id} ungrouped: ${this.children.length} ${
@@ -48,6 +49,7 @@ export class UngroupCommand implements Command {
       this.host.removeChild(child);
     }
     this.host.insertAt(this.index, this.group);
+    this.doc.register(this.group);
     for (const child of this.children) {
       this.group.append(child);
     }
